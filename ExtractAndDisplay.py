@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
+# Loads a series of frames from a video contained in 'clip.mp4' and displays
+# them with a 42ms delay
+
 import threading
 import cv2
 import numpy as np
 import base64
 import queue
 
-# Meow
 def extractFrames(fileName, outputBuffer, maxFramesToLoad=9999):
     # Initialize frame count 
     count = 0

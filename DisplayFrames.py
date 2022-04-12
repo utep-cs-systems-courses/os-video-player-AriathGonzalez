@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 
+# Step 3.
+
+# Loads a series of frames sequentially from files with the names
+# 'grayscale_xxxx.jpg' and displays them with a 42ms delay.
+
 import cv2
 import time
 
 # globals
-outputDir    = 'frames'
-frameDelay   = 42       # the answer to everything
+outputDir = 'frames'
+frameDelay = 42       # the answer to everything
 
 # initialize frame count
 count = 0
 
 # Generate the filename for the first frame 
-frameFileName = f'{outputDir}/grayscale_{count:04d}.bmp'
+frameFileName = f'{outputDir}/grayscale_{count:04d}.jpg'
 
 # load the frame
 frame = cv2.imread(frameFileName)
@@ -28,7 +33,7 @@ while frame is not None:
     
     # get the next frame filename
     count += 1
-    frameFileName = f'{outputDir}/grayscale_{count:04d}.bmp'
+    frameFileName = f'{outputDir}/grayscale_{count:04d}.jpg'
 
     # Read the next frame file
     frame = cv2.imread(frameFileName)

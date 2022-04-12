@@ -9,7 +9,7 @@ and convert them to grayscale, and the third thread will display those
 frames. The threads will run concurrently.
 
 In order to run this lab opencv will need to be installed. To install opencv
-use the follwing commands (note that ordering is important):
+use the following commands (note that ordering is important):
 
     sudo zypper -n install python3-devel
     sudo zypper -n install ffmpeg ffmpeg-3
@@ -33,16 +33,16 @@ them as jpeg images in sequentially numbered files with the pattern
 'frame_xxxx.jpg'.
 
 ### ConvertToGrayscale.py
-Loads a series for frams from sequentially numbered files with the pattern
-'frame_xxxx.jpg', converts the grames to grayscale, and saves them as jpeg
+Loads a series for frames from sequentially numbered files with the pattern
+'frame_xxxx.jpg', converts the frames to grayscale, and saves them as jpeg
 images with the file names 'grayscale_xxxx.jpg'
 
 ### DisplayFrames.py
-Loads a series of frames sequently from files with the names
+Loads a series of frames sequentially from files with the names
 'grayscale_xxxx.jpg' and displays them with a 42ms delay.
 
 ### ExtractAndDisplay.py
-Loads a series of framss from a video contained in 'clip.mp4' and displays 
+Loads a series of frames from a video contained in 'clip.mp4' and displays 
 them with a 42ms delay
 
 ## Requirements
@@ -51,16 +51,16 @@ them in sequence
 * You must have three functions
   * One function to extract the frames
   * One function to convert the frames to grayscale
-  * One function to display the frames at the original framerate (24fps)
+  * One function to display the frames at the original frame rate (24fps)
 * The functions must each execute within their own python thread
   * The threads will execute concurrently
   * The order threads execute in may not be the same from run to run
 * Threads will need to signal that they have completed their task
 * Threads must process all frames of the video exactly once
 * Frames will be communicated between threads using producer/consumer idioms
-  * Producer/consumer qeueus must be bounded at ten frames
+  * Producer/consumer queues must be bounded at ten frames
 
-Note: You may have ancillary objects and method in order to make you're code easer to understand and implement.
+Note: You may have ancillary objects and method in order to make your code easier to understand and implement.
 
 
 # to install on ubuntu
