@@ -1,163 +1,161 @@
 #!/usr/bin/env python3
 
 import cv2
+import time
 import threading
-from threading import *
 import queue
 
 class Queue:
     q = queue.Queue()
+    q2 = queue.Queue()
     qLock = threading.Lock()
-    full = Semaphore(0)
+    full = threading.Semaphore(0)
     nFull = 0
-    empty = Semaphore(24)
-    nEmpty = 24
+    empty = threading.Semaphore(10)
+    nEmpty = 10
+    timeToDisplay = False
 
 # Reader thread. Reads mp4 file. Generate frames. Put frames into Q.
 class ExtractFrame(threading.Thread):
-    def __init__(self, fileName, outputBuffer, maxFramesToLoad=999):
+    def __init__(self, fileName, Q, maxFramesToLoad=999):
         print("Init...")
         threading.Thread.__init__(self)
         self.fileName = fileName
-        self.outputBuffer = outputBuffer
+        self.Q = Q
         self.maxFramesToLoad = maxFramesToLoad
 
     # Produces full Q cells, puts frames into Q.
     def run(self):
-        print("Run...ExtractFrame")
-        print("Q...")
-        for n in list(self.outputBuffer.q.queue):
-            print(n, end=" ")
+        while True:
+            print("Run...ExtractFrame")
 
-        # Initialize frame count
-        count = 0
+            # Initialize frame count
+            count = 0
 
-        # open video file
-        vidcap = cv2.VideoCapture(self.fileName)
+            # open video file
+            vidcap = cv2.VideoCapture(self.fileName)
 
-        # Produce new frame.
-        success, frame = vidcap.read()
-
-        # Check if available nEmpty.
-        if self.outputBuffer.nEmpty > 0:
-            print("Passed first if?")
-            self.outputBuffer.empty.acquire()  # Decrement.
-            self.outputBuffer.nEmpty -= 1
-
-            self.outputBuffer.qLock.acquire()
-
-            # Insert into Q.
-            self.outputBuffer.q.put(frame)
-
-            self.outputBuffer.qLock.release()
-
-            self.outputBuffer.full.release()
-            self.outputBuffer.nFull += 1
-
-            print(f'Reading frame {count} {success}')
+            success = True
             while success and count < self.maxFramesToLoad:
+                # If full sleep, until completely empty
                 # Produce new frame.
-                success, frame = vidcap.read()
+                if self.Q.nEmpty > 0:
+                    success, frame = vidcap.read()
 
-                # Check if available nEmpty.
-                if self.outputBuffer.nEmpty > 0:
-                    print("Passed 2nd if?")
+                    self.Q.empty.acquire()
+                    self.Q.nEmpty -= 1
 
-                    self.outputBuffer.empty.acquire()  # Decrement.
-                    self.outputBuffer.nEmpty -= 1
-                    self.outputBuffer.qLock.acquire()
+                    # Insert into Q
+                    self.Q.qLock.acquire()
+                    self.Q.q.put(frame)
+                    self.Q.qLock.release()
 
-                    # Insert into Q.
-                    self.outputBuffer.q.put(frame)
+                    self.Q.full.release()
+                    self.Q.nFull += 1
 
-                    self.outputBuffer.qLock.release()
-
-                    self.outputBuffer.full.release()
-                    self.outputBuffer.nFull += 1
                     print(f'Reading frame {count} {success}')
                     count += 1
-
-            #for n in list(self.outputBuffer.q.queue):
-                #print(n, end=" ")
+                #elif self.Q.nEmpty != 10:
+                #else:
+                    #time.sleep(0.5)
             print('Frame extraction complete')
+            break
 
 # BW-izer thread. Reads color frames from Q. Generates monochrome frames. Put frames into Q.
 class ConvertToGrayscale(threading.Thread):
 
-    def __init__(self, outputBuffer):
+    def __init__(self, Q, maxFramesToLoad):
         threading.Thread.__init__(self)
-        self.outputBuffer = outputBuffer
+        self.Q = Q
+        self.maxFramesToLoad = maxFramesToLoad
         print("Init...")
 
     # Reads color frames -> generates monochrome.
     def run(self):
-        print("Run... ConvertToGrayscale")
-        print("Q...")
-        for n in list(self.outputBuffer.q.queue):
-            print(n, end=" ")
+        while True:
+            # While full, convert
+            print("Run... ConvertToGrayscale")
 
-        print("Converting frames...")
+            print("Converting frames...")
 
-        # initialize frame count
-        count = 0
+            # initialize frame count
+            count = 0
 
-        # Get q size.
-        size = self.outputBuffer.q.qsize()
+            # Get q size.
+            #size = self.Q.q.qsize()
 
-        while count < size:
-            # Get frame.
-            frame = self.outputBuffer.q.get()
-            # Convert frame to grayscale.
-            grayscaleFrame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            while count < self.maxFramesToLoad:
+                #if self.Q.nFull > 0:
+                if not self.Q.q.empty():
+                    print(f'Converting frame {count}')
+                    # Get frame.
+                    frame = self.Q.q.get()
 
-            self.outputBuffer.q.put(grayscaleFrame)
-            count += 1
+                    # Convert frame to grayscale. (Rn converting grayscale to grayscale?)
+                    grayscaleFrame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+                    self.Q.qLock.acquire()
+                    self.Q.q2.put(grayscaleFrame)
+                    self.Q.qLock.release()
+
+                    count += 1
+                    #if self.Q.q.empty():
+                        #self.Q.timeToDisplay = True
+                #else:
+                    #time.sleep(0.5)
+            break
 
 # Displayer thread. Reads monochrome frames. Display frames at a normal frame rate.
 class DisplayFrame(threading.Thread):
 
-    def __init__(self, inputBuffer):
+    def __init__(self, Q, maxFramesToLoad):
         threading.Thread.__init__(self)
-        self.inputBuffer = inputBuffer
+        self.Q = Q
+        self.maxFramesToLoad = maxFramesToLoad
         print("Init...")
 
     # Produces empty Q cells. Thread takes frames from Q and displays them
     def run(self) -> None:
-        print("Run...DisplayFrame")
-        print("Q...")
-        for n in list(self.inputBuffer.q.queue):
-            print(n, end=" ")
-        # Initialize frame count.
-        count = 0
+        while True:
 
-        # Go through each frame in the buffer until the buffer is empty.
-        while not self.inputBuffer.q.empty():
-            self.inputBuffer.full.acquire()
-            self.inputBuffer.nFull -= 1
+            # Sleep until time to display(nEmpty 0 or nFull = 10)
 
-            self.inputBuffer.qLock.acquire()
+            print("Run...DisplayFrame")
+            count = 0
 
-            # Get the next frame.
-            frame = self.inputBuffer.q.get()
+            # Go through each frame in the buffer until the buffer is empty.
+            #while not self.Q.q.empty():
+            while count < self.maxFramesToLoad :
+                #if self.Q.nFull > 0:
+                if self.Q.nFull > 0 and not self.Q.q2.empty():
+                    while self.Q.nFull > 0:
+                        self.Q.full.acquire()
+                        self.Q.nFull -= 1
 
-            self.inputBuffer.qLock.release()
+                        self.Q.qLock.acquire()
 
-            self.inputBuffer.empty.release()
-            self.inputBuffer.nEmpty += 1
+                        # Get the next frame.
+                        frame = self.Q.q2.get()
 
-            print(f'Displaying frame {count}')
+                        self.Q.qLock.release()
 
-            # display the image in a window called "video" and wait 42ms
-            # before displaying the next frame
-            cv2.imshow('Video', frame)
-            if cv2.waitKey(42) and 0xFF == ord("q"):
-                break
+                        self.Q.empty.release()
+                        self.Q.nEmpty += 1
 
-            count += 1
+                        print(f'Displaying frame {count}')
+                        count += 1
+                        # Sleep until time to display
+                        cv2.imshow('Video', frame)
+                        if cv2.waitKey(42) and 0xFF == ord("q"):
+                            break
+                #else:
+                    #cv2.destroyAllWindows()
+                    #time.sleep(0.5)
 
-        print('Finished displaying all frames')
-        # cleanup the windows
-        cv2.destroyAllWindows()
+            print('Finished displaying all frames')
+            # cleanup the windows
+            cv2.destroyAllWindows()
+            break
 
 def main():
     print("Main stuff...")
@@ -165,16 +163,16 @@ def main():
 
     # Create threads
     extractFrame = ExtractFrame("clip.mp4", Q, 72)
-    convertToGrayscale = ConvertToGrayscale(Q)
-    displayFrame = DisplayFrame(Q)
+    convertToGrayscale = ConvertToGrayscale(Q, 72)
+    displayFrame = DisplayFrame(Q, 72)
 
     # Start threads
     extractFrame.start()
-    extractFrame.join()
+    #extractFrame.join()
     convertToGrayscale.start()
-    convertToGrayscale.join()
+    #convertToGrayscale.join()
     displayFrame.start()
-    displayFrame.join()
+    #displayFrame.join()
 
 if __name__ == "__main__":
     main()
