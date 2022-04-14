@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# Producer needs to produce faster for smooth (fps)
+# use counting semaphores instead of variables
+
 import cv2
 import threading
 import queue
@@ -32,7 +35,7 @@ class ExtractFrame(threading.Thread):
         success = True
         while success and count < self.maxFramesToLoad:
             # Uses Empty cells, so check if any Empty available. Otherwise, block thread.
-            if self.Q.nEmpty > 0:
+            while self.Q.nEmpty > 0:
                 success, frame = vidcap.read()
 
                 self.Q.empty.acquire()
@@ -49,6 +52,7 @@ class ExtractFrame(threading.Thread):
                 count += 1
         print('Frame extraction complete')
 
+# Consumer/Producer
 # BW-izer thread. Reads color frames from q. Generates monochrome frames. Put monochrome frames into q2.
 class ConvertToGrayscale(threading.Thread):
 
@@ -63,8 +67,7 @@ class ConvertToGrayscale(threading.Thread):
 
         while count < self.maxFramesToLoad:
             # Check if available frames from q, otherwise, block thread.
-            if not self.Q.q.empty():
-                #print(f'Converting frame {count}')
+            while not self.Q.q.empty():
                 # Get frame.
                 frame = self.Q.q.get()
 
@@ -94,23 +97,23 @@ class DisplayFrame(threading.Thread):
         # Go through each frame in the buffer until the buffer is empty.
         while count < self.maxFramesToLoad:
             # Uses Full cells, so check if any Full available and any frames in q2. Otherwise, block thread.
-            if self.Q.nFull > 0 and not self.Q.q2.empty():
-                while self.Q.nFull > 0:
-                    self.Q.full.acquire()
-                    self.Q.nFull -= 1
+            while self.Q.nFull > 0 and not self.Q.q2.empty():
+                self.Q.full.acquire()
+                self.Q.nFull -= 1
 
-                    self.Q.qLock.acquire()
-                    frame = self.Q.q2.get()
-                    self.Q.qLock.release()
+                self.Q.qLock.acquire()
+                frame = self.Q.q2.get()
+                self.Q.qLock.release()
 
-                    self.Q.empty.release()
-                    self.Q.nEmpty += 1
+                self.Q.empty.release()
+                self.Q.nEmpty += 1
 
-                    count += 1
+                count += 1
 
-                    cv2.imshow('Video', frame)
-                    if cv2.waitKey(42) and 0xFF == ord("q"):
-                        break
+                # 42
+                cv2.imshow('Video', frame)
+                if cv2.waitKey(21) and 0xFF == ord("q"):
+                    break
 
         print('Finished displaying all frames')
         # cleanup the windows
